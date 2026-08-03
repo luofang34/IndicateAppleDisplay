@@ -30,7 +30,22 @@ public typealias PlatformViewBase = NSView
 @MainActor
 public final class InstrumentPanelView: PlatformViewBase {
     /// The pipeline this view presents.
-    public let display: PanelDisplay
+    ///
+    /// Assigning a different pipeline switches what the view shows. A host that
+    /// swaps panels does so through this rather than by building a second view,
+    /// so each panel keeps its own failure latch and recovery streak across the
+    /// switch instead of arriving healthy because it is new.
+    public var display: PanelDisplay {
+        didSet {
+            guard display !== oldValue else { return }
+            // The watchdog cadence belongs to the pipeline, so it is rearmed
+            // rather than carried over.
+            guard link != nil else { return }
+            stop()
+            start()
+        }
+    }
+
     /// Called after every frame attempt, for a diagnostics surface.
     public var onOutcome: ((PanelFrameOutcome) -> Void)?
 

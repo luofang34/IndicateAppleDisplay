@@ -59,6 +59,35 @@ public struct PanelFrameOutcome {
     public let generation: UInt32?
     /// What the scene contained, when it validated.
     public let report: SceneLayerReport?
+
+    /// Everything about this frame except the frame itself.
+    ///
+    /// A host that mirrors frame results into observable state must publish on
+    /// change, not on arrival: a display link delivers a healthy panel sixty or
+    /// a hundred and twenty times a second, and republishing each one rebuilds
+    /// the surrounding interface at that rate until it stops responding. That
+    /// is the same coupling the pull-shaped pipeline exists to break, one layer
+    /// up. Comparing summaries is how a host tells the two apart, which is why
+    /// the generation — the one field guaranteed to differ every frame — is
+    /// deliberately not part of it.
+    public var summary: PanelFrameSummary {
+        PanelFrameSummary(
+            showingFailure: showingFailure,
+            reason: reason,
+            layersPresent: report?.layersPresent ?? [],
+            layerCommands: report?.layerCommands ?? [],
+            unknownOpcodes: report?.unknownOpcodes ?? 0
+        )
+    }
+}
+
+/// What a host would show about a frame, stable across identical frames.
+public struct PanelFrameSummary: Equatable, Sendable {
+    public let showingFailure: Bool
+    public let reason: DisplayReason
+    public let layersPresent: [SceneLayer]
+    public let layerCommands: [Int]
+    public let unknownOpcodes: Int
 }
 
 /// One panel's transactional frame pipeline: produce, validate, paint, commit.

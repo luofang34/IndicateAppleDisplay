@@ -33,6 +33,10 @@ extension InstrumentPanel: UIViewRepresentable {
     public func makeUIView(context: Context) -> InstrumentPanelView { makeView() }
 
     public func updateUIView(_ view: InstrumentPanelView, context: Context) {
+        // SwiftUI reuses one view for a given position in the tree, so a
+        // changed panel arrives here rather than through makeUIView. Assigning
+        // it is what makes switching panels work at all.
+        view.display = display
         view.onOutcome = onOutcome
     }
 }
@@ -41,6 +45,10 @@ extension InstrumentPanel: NSViewRepresentable {
     public func makeNSView(context: Context) -> InstrumentPanelView { makeView() }
 
     public func updateNSView(_ view: InstrumentPanelView, context: Context) {
+        // SwiftUI reuses one view for a given position in the tree, so a
+        // changed panel arrives here rather than through makeUIView. Assigning
+        // it is what makes switching panels work at all.
+        view.display = display
         view.onOutcome = onOutcome
     }
 }

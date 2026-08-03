@@ -118,6 +118,39 @@ func anUnknownOpcodeFailsTheFrameByDefaultAndSkipsWhenAsked() {
     #expect(painted.report?.unknownOpcodes == 1)
 }
 
+@Test
+func identicalFramesSummariseIdenticallySoAHostCanPublishOnChange() {
+    // A display link delivers a healthy panel up to 120 times a second. A host
+    // that mirrors every outcome into observable state rebuilds its interface
+    // at that rate until it stops responding, so the summary must be equal
+    // across frames that show the same thing — which means excluding the
+    // generation, the one field that always differs.
+    let producer = StubProducer(bytes: attitudeScene)
+    let display = PanelDisplay(requirements: requirements(), producer: producer)
+    let first = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
+    // A real producer advances per render, which is exactly what must not
+    // reach a host as a change worth republishing.
+    producer.generation &+= 1
+    let second = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 8)
+    #expect(first.generation != second.generation)
+    #expect(first.summary == second.summary)
+}
+
+@Test
+func aFrameWorthShowingDifferentlySummarisesDifferently() {
+    // The other half of the claim: publishing on change must not mean missing
+    // a change. A covered frame has to compare unequal to a shown one.
+    let producer = StubProducer(bytes: attitudeScene)
+    let display = PanelDisplay(requirements: requirements(), producer: producer)
+    let healthy = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
+
+    producer.fault = .renderTrap
+    let covered = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 16)
+    #expect(healthy.summary != covered.summary)
+    #expect(covered.summary.showingFailure)
+    #expect(covered.summary.reason == .renderTrap)
+}
+
 // MARK: - Latch and recovery
 
 @Test
