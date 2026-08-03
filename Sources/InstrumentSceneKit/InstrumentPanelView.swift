@@ -70,8 +70,8 @@ public final class InstrumentPanelView: PlatformViewBase {
         #endif
         // Never stretch an instrument. If a stale image is briefly shown across
         // a resize, letterboxing keeps its geometry truthful.
-        layer?.contentsGravity = .resizeAspect
-        layer?.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        hostLayer?.contentsGravity = .resizeAspect
+        hostLayer?.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
     }
 
     private func start() {
@@ -145,10 +145,14 @@ public final class InstrumentPanelView: PlatformViewBase {
     }
 
     private func present(_ image: CGImage, scale: CGFloat) {
-        guard let layer else { return }
-        layer.contentsScale = scale
-        layer.contents = image
+        guard let hostLayer else { return }
+        hostLayer.contentsScale = scale
+        hostLayer.contents = image
     }
+
+    /// UIKit hands back a layer, AppKit an optional one. Widening to the
+    /// optional lets the rest of this view read the same on both.
+    private var hostLayer: CALayer? { layer }
 
     private var backingScale: CGFloat {
         #if canImport(UIKit)
