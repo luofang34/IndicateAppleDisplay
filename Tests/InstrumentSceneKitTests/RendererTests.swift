@@ -171,3 +171,36 @@ func anExpandedFrameShiftsTheMappedRegion() throws {
     )
     #expect(image.width == 120)
 }
+
+@Test
+func contentBoundsApplyTheTransformStack() throws {
+    // A 40x40 rect at the origin, drawn inside translate(200,100).
+    // Measuring the raw arguments would report 0..40; the real extent is
+    // 200..240, which is exactly the mistake that under-reports a rotating
+    // compass rose and lets a fitted frame clip it.
+    func f32(_ v: Float) -> [UInt8] { withUnsafeBytes(of: v.bitPattern.littleEndian) { Array($0) } }
+    var bytes: [UInt8] = [1, 0x50, 1, 0, 1, 0x01, 0, 0]
+    bytes += [0x03, 8, 0] + f32(200) + f32(100)
+    bytes += [0x23, 17, 0, 0b01] + f32(0) + f32(0) + f32(40) + f32(40)
+    bytes += [0x02, 0, 0, 0x51, 1, 0, 1]
+
+    let bounds = try #require(try SceneRenderer(atlas: BoxAtlas()).contentBounds(bytes))
+    #expect(abs(bounds.minX - 200) < 0.001, "translate must move the measured box")
+    #expect(abs(bounds.minY - 100) < 0.001)
+    #expect(abs(bounds.width - 40) < 0.001)
+}
+
+@Test
+func contentBoundsMeasureAllFourCornersUnderRotation() throws {
+    // A rect rotated 90 degrees keeps its size but not its axis alignment;
+    // measuring only two opposite corners would collapse the box.
+    func f32(_ v: Float) -> [UInt8] { withUnsafeBytes(of: v.bitPattern.littleEndian) { Array($0) } }
+    var bytes: [UInt8] = [1, 0x50, 1, 0, 1, 0x01, 0, 0]
+    bytes += [0x04, 4, 0] + f32(.pi / 2)
+    bytes += [0x23, 17, 0, 0b01] + f32(10) + f32(0) + f32(40) + f32(20)
+    bytes += [0x02, 0, 0, 0x51, 1, 0, 1]
+
+    let bounds = try #require(try SceneRenderer(atlas: BoxAtlas()).contentBounds(bytes))
+    #expect(abs(bounds.width - 20) < 0.001, "a 90 degree turn swaps the extents")
+    #expect(abs(bounds.height - 40) < 0.001)
+}
