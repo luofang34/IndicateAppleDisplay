@@ -42,9 +42,11 @@ public enum SceneRenderError: Error, Equatable, Sendable {
 /// validate, then paint — so a partially painted frame never becomes visible.
 public struct SceneRenderer {
     private let atlas: (any GlyphAtlas)?
+    private let glyphs: GlyphPathCache?
 
     public init(atlas: (any GlyphAtlas)? = nil) {
         self.atlas = atlas
+        glyphs = atlas.map(GlyphPathCache.init(atlas:))
     }
 
     /// Glyph advance as a fraction of the text size, when an atlas is set.
@@ -68,6 +70,19 @@ public struct SceneRenderer {
         } catch {
             throw SceneRenderError.layer(error)
         }
+        try paintValidated(bytes, into: context)
+        return report
+    }
+
+    /// Paints a scene that has already passed ``SceneValidator/validate(_:)``.
+    ///
+    /// A display host validates once, decides whether the frame may be
+    /// committed at all, and only then paints. Re-validating inside the
+    /// painter would decode every frame twice for nothing.
+    func paintValidated(
+        _ bytes: [UInt8],
+        into context: CGContext
+    ) throws(SceneRenderError) {
         var state = PaintState()
         var decoder: SceneDecoder
         do {
@@ -80,7 +95,6 @@ public struct SceneRenderer {
         } catch {
             throw SceneRenderError.layer(.decode(.truncated))
         }
-        return report
     }
 
     private struct PaintState {
@@ -218,6 +232,10 @@ public struct SceneRenderer {
     /// agree glyph for glyph: `size` is the cell height, the bitmap sits
     /// entirely above the baseline, and an uncovered character fails the frame
     /// rather than being substituted.
+    ///
+    /// The whole run accumulates into one path and fills once. Filling each
+    /// glyph pixel separately would seam under anti-aliasing at fractional
+    /// scales, and at instrument density it is the dominant per-frame cost.
     private func drawText(
         _ bytes: [UInt8],
         x: Float,
@@ -227,47 +245,58 @@ public struct SceneRenderer {
         into context: CGContext,
         state: PaintState
     ) throws(SceneRenderError) {
-        guard let atlas else { throw SceneRenderError.textWithoutAtlas }
+        guard let atlas, let glyphs else { throw SceneRenderError.textWithoutAtlas }
         let scalars = Array(String(decoding: bytes, as: UTF8.self).unicodeScalars)
-        guard !scalars.isEmpty, size > 0 else { return }
+        guard !scalars.isEmpty, size > 0, atlas.cellHeight > 0 else { return }
 
         let size = CGFloat(size)
         let scale = size / CGFloat(atlas.cellHeight)
         let advance = CGFloat(atlas.advance) * scale
-        let width = advance * CGFloat(scalars.count)
+        let layout = textOrigin(
+            x: x, y: y, size: size,
+            width: advance * CGFloat(scalars.count),
+            anchor: anchor
+        )
 
-        var pen = CGFloat(x)
+        let run = CGMutablePath()
+        var pen = layout.left
+        for scalar in scalars {
+            guard let glyph = glyphs.path(for: scalar.value) else {
+                throw SceneRenderError.missingGlyph(scalar)
+            }
+            run.addPath(glyph, transform: CGAffineTransform(scaleX: scale, y: scale)
+                .concatenating(CGAffineTransform(translationX: pen, y: layout.top)))
+            pen += advance
+        }
+        guard !run.isEmpty else { return }
+        context.setFillColor(state.fill)
+        context.addPath(run)
+        context.fillPath()
+    }
+
+    /// Where a run's cell grid starts, given its anchor.
+    ///
+    /// Vertical: top anchors at y; middle backs off half a cell; baseline and
+    /// bottom back off a full cell because the pack has zero descent.
+    private func textOrigin(
+        x: Float,
+        y: Float,
+        size: CGFloat,
+        width: CGFloat,
+        anchor: Anchor
+    ) -> (left: CGFloat, top: CGFloat) {
+        var left = CGFloat(x)
         switch anchor.horizontal {
         case .left: break
-        case .center: pen -= width / 2
-        case .right: pen -= width
+        case .center: left -= width / 2
+        case .right: left -= width
         }
-        // Vertical: top anchors at y; middle backs off half a cell; baseline
-        // and bottom back off a full cell because descent is zero.
         let top: CGFloat = switch anchor.vertical {
         case .top: CGFloat(y)
         case .middle: CGFloat(y) - size / 2
         case .baseline, .bottom: CGFloat(y) - size
         }
-
-        context.setFillColor(state.fill)
-        for scalar in scalars {
-            guard let rows = atlas.rows(for: scalar.value) else {
-                throw SceneRenderError.missingGlyph(scalar)
-            }
-            for (row, bits) in rows.enumerated() {
-                for column in 0..<atlas.cellWidth
-                where (bits >> (atlas.cellWidth - 1 - column)) & 1 == 1 {
-                    context.fill(CGRect(
-                        x: pen + CGFloat(column) * scale,
-                        y: top + CGFloat(row) * scale,
-                        width: scale,
-                        height: scale
-                    ))
-                }
-            }
-            pen += advance
-        }
+        return (left, top)
     }
 
     private func finite(_ values: Float...) throws(SceneRenderError) {

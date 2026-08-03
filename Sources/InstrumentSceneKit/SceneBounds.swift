@@ -1,9 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// The frame instrument panels are authored in.
-public let panelDesignFrame = CGRect(x: 0, y: 0, width: 480, height: 360)
-
 public extension SceneRenderer {
     /// The bounding box of everything a scene paints, in scene units.
     ///
@@ -17,9 +14,9 @@ public extension SceneRenderer {
     /// command carries. Stroke width is not included: this is geometry, and a
     /// caller wanting visual extent should allow for half a stroke.
     ///
-    /// Comparing this with ``panelDesignFrame`` is how a backend detects a panel
-    /// painting outside the frame it was authored for — content a fixed-frame
-    /// backend would silently clip.
+    /// Comparing this with the producer's ``PanelRequirements/designFrame`` is
+    /// how a backend detects a panel painting outside the frame it was authored
+    /// for — content a fixed-frame backend would silently clip.
     func contentBounds(_ bytes: [UInt8]) throws(SceneDecodeError) -> CGRect? {
         var minX = CGFloat.greatestFiniteMagnitude
         var minY = CGFloat.greatestFiniteMagnitude

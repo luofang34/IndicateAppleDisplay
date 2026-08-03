@@ -30,6 +30,11 @@ private func hex(_ text: String) -> [UInt8] {
     return result
 }
 
+/// The frame the corpus panels are authored in. Declared by the test rather
+/// than by the package: a design size belongs to a producer's panels, not to a
+/// backend that must serve any of them.
+private let designFrame = CGRect(x: 0, y: 0, width: 480, height: 360)
+
 /// A minimal atlas with the reference pack's geometry: every covered glyph is
 /// a filled block, space is blank.
 private struct BoxAtlas: GlyphAtlas {
@@ -123,7 +128,7 @@ func offscreenImageIsProducedAtTheRequestedSize() throws {
             + "02000051010001"
     )
     let image = try SceneRenderer(atlas: BoxAtlas()).image(
-        scene, pixelWidth: 240, pixelHeight: 180, logicalFrame: panelDesignFrame
+        scene, pixelWidth: 240, pixelHeight: 180, logicalFrame: designFrame
     )
     #expect(image.width == 240)
     #expect(image.height == 180)
@@ -135,7 +140,7 @@ func aFailingSceneProducesNoImageAtAll() {
     let scene = hex("010100000200")
     #expect(throws: SceneRenderError.self) {
         try SceneRenderer(atlas: BoxAtlas()).image(
-            scene, pixelWidth: 64, pixelHeight: 64, logicalFrame: panelDesignFrame
+            scene, pixelWidth: 64, pixelHeight: 64, logicalFrame: designFrame
         )
     }
 }
@@ -167,7 +172,7 @@ func anExpandedFrameShiftsTheMappedRegion() throws {
     )
     let image = try SceneRenderer(atlas: BoxAtlas()).image(
         scene, pixelWidth: 120, pixelHeight: 90,
-        logicalFrame: panelDesignFrame.insetBy(dx: -12, dy: -12)
+        logicalFrame: designFrame.insetBy(dx: -12, dy: -12)
     )
     #expect(image.width == 120)
 }

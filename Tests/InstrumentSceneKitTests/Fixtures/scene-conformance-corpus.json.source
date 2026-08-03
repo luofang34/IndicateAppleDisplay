@@ -1,0 +1,12 @@
+# Provenance of the vendored conformance corpus.
+#
+# The corpus is authored by the reference rasterizer and reviewed there. This
+# repository only ever *compares* against it. Regenerating it is an upstream
+# action; syncing it here is a reviewed action with its own diff.
+#
+# Updated by scripts/sync-corpus.sh. Verified by scripts/check-corpus.sh.
+
+repo=https://github.com/luofang34/Pilotage.git
+path=clients/web/scene-conformance-corpus.json
+revision=c93be3befdcb70d9039a3d43e5dde9aade9761a9
+sha256=441c69f01b3e7223a93e9881f5ba834e1488c20ad44c4dc1489b93105847cf61
