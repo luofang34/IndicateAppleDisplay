@@ -4,13 +4,12 @@ import Testing
 
 /// The corpus this backend is verified against.
 ///
-/// Pinning the version and digest is the point: a corpus regeneration that
-/// changes expected behavior must fail here rather than silently re-baselining
-/// this interpreter against a moved target.
-private let expectedSchemaVersion = 2
-private let expectedCorpusVersion = 3
-private let expectedCorpusSha256 =
-    "7130efd29b19c2f0fb4622cefd7357dd4e6c038f70efa27e0adbebc4d03cdc6f"
+/// Read from ``SceneBackend`` rather than copied, so the constants the package
+/// reports to a consumer are the ones conformance actually asserts. A private
+/// copy here could pass while the shipped claim said something else.
+private let expectedSchemaVersion = SceneBackend.conformanceSchemaVersion
+private let expectedCorpusVersion = SceneBackend.conformanceCorpusVersion
+private let expectedCorpusSha256 = SceneBackend.conformanceCorpusDigest
 
 private struct Corpus: Decodable {
     struct Decode: Decodable {
