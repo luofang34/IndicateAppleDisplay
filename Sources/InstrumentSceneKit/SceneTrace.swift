@@ -29,6 +29,10 @@ public enum SceneTrace {
             "24:\(mode.traceLetter),\(q(centerX)),\(q(centerY)),\(q(radius))"
         case let .arc(centerX, centerY, radius, start, sweep):
             "25:\(q(centerX)),\(q(centerY)),\(q(radius)),\(q(start)),\(q(sweep))"
+        // Not yet covered by the conformance corpus (v3 carries no 0x31
+        // entry), so this follows the vocabulary's opcode:arg shape rather
+        // than a pinned form. A corpus that grows the opcode settles it.
+        case let .attribute(group): "31:\(group)"
         case let .text(x, y, size, anchor, bytes):
             "30:\(q(size)),\(anchorWire(anchor)),\(q(x)),\(q(y)),\(hex(bytes))"
         case let .clipRect(x, y, width, height):

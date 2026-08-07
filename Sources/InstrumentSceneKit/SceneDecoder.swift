@@ -34,6 +34,7 @@ private enum Opcode {
     static let circle: UInt8 = 0x24
     static let arc: UInt8 = 0x25
     static let text: UInt8 = 0x30
+    static let attribute: UInt8 = 0x31
     static let clipRect: UInt8 = 0x40
     static let beginLayer: UInt8 = 0x50
     static let endLayer: UInt8 = 0x51
@@ -161,6 +162,9 @@ public struct SceneDecoder {
                 x: float(payload + 5), y: float(payload + 9),
                 size: float(payload), anchor: anchor, bytes: textBytes
             )
+        case Opcode.attribute:
+            try require(length == 1, opcode)
+            return .attribute(group: bytes[payload])
         case Opcode.clipRect:
             try require(length == 16, opcode)
             return .clipRect(

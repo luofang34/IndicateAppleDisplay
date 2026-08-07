@@ -115,6 +115,14 @@ public enum SceneCommand: Equatable, Sendable {
     case circle(mode: PaintMode, centerX: Float, centerY: Float, radius: Float)
     case arc(centerX: Float, centerY: Float, radius: Float, start: Float, sweep: Float)
     case text(x: Float, y: Float, size: Float, anchor: Anchor, bytes: [UInt8])
+    /// Claims the source of the run that follows. Draws nothing.
+    ///
+    /// A numeric readout carries the state group it derives from, so a value
+    /// on screen can be traced to the data that produced it rather than being
+    /// taken on trust. A backend paints nothing for this, but it must decode
+    /// it: counting it as unknown would hide that the producer is making
+    /// provenance claims this backend cannot check.
+    case attribute(group: UInt8)
     case clipRect(x: Float, y: Float, width: Float, height: Float)
     case beginLayer(SceneLayer)
     case endLayer(SceneLayer)

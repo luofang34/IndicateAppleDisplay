@@ -209,3 +209,28 @@ func contentBoundsMeasureAllFourCornersUnderRotation() throws {
     #expect(abs(bounds.width - 20) < 0.001, "a 90 degree turn swaps the extents")
     #expect(abs(bounds.height - 40) < 0.001)
 }
+
+@Test
+func anAttributeClaimDecodesRatherThanCountingAsUnknown() throws {
+    // A provenance claim draws nothing, but counting it as an unknown opcode
+    // would hide that the producer is making claims this backend cannot check
+    // — and would fail any consumer asserting it understands the whole stream.
+    func f32(_ v: Float) -> [UInt8] { withUnsafeBytes(of: v.bitPattern.littleEndian) { Array($0) } }
+    var bytes: [UInt8] = [1, 0x50, 1, 0, 1, 0x01, 0, 0]
+    bytes += [0x31, 1, 0, 0x02]                                   // Attribute { group: Kinematics }
+    bytes += [0x23, 17, 0, 0b01] + f32(0) + f32(0) + f32(10) + f32(10)
+    bytes += [0x02, 0, 0, 0x51, 1, 0, 1]
+
+    let report = try SceneValidator.validate(bytes)
+    #expect(report.unknownOpcodes == 0, "an attribute claim is a known command")
+
+    let trace = try SceneTrace.trace(bytes)
+    #expect(trace.contains("31:2"))
+
+    // It contributes no ink, so it must not move the measured bounds.
+    let withClaim = try #require(try SceneRenderer(atlas: BoxAtlas()).contentBounds(bytes))
+    var without = bytes
+    without.removeSubrange(8..<12)
+    let plain = try #require(try SceneRenderer(atlas: BoxAtlas()).contentBounds(without))
+    #expect(withClaim == plain)
+}

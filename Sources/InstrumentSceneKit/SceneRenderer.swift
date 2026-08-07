@@ -180,6 +180,10 @@ public struct SceneRenderer {
         case let .text(x, y, size, anchor, bytes):
             try finite(x, y, size)
             try drawText(bytes, x: x, y: y, size: size, anchor: anchor, into: context, state: state)
+        case .attribute:
+            // A provenance claim about the run that follows. It draws nothing;
+            // decoding it is what keeps it out of the unknown-opcode count.
+            break
         case .unknown:
             break
         }
