@@ -1,7 +1,13 @@
-# InstrumentSceneKit
+# IndicateAppleDisplay
 
 A Core Graphics backend for the instrument scene-command IR, plus the display
 discipline a panel needs before its frame may be shown.
+
+## Migration note
+
+This package was previously named InstrumentSceneKit. The rename changed the
+package name, the product name, and the module name. The public API and the
+behaviour did not change.
 
 The package takes encoded scene bytes and produces pixels. It has no
 dependency on any producer, on Rust, or on any protocol: a scene is a byte
@@ -64,12 +70,17 @@ clip is invisible as a fault and visible as wrong content.
 ## Usage
 
 ```swift
+let designFrame = CGSize(
+    width: descriptor.designWidth,
+    height: descriptor.designHeight
+)
 let requirements = PanelRequirements(
     id: descriptor.id,
     title: descriptor.title,
     criticalLayerMask: descriptor.requiredLayers,   // from the producer
-    designWidth: descriptor.designWidth,
-    designHeight: descriptor.designHeight
+    frameMin: designFrame,
+    frameMax: designFrame,
+    canonicalFrame: designFrame
 )!
 
 let display = PanelDisplay(
@@ -88,24 +99,24 @@ change would dismiss a latched fault and rebuild every glyph outline.
 
 ## The conformance corpus
 
-`Tests/InstrumentSceneKitTests/Fixtures/scene-conformance-corpus.json` is
+`Tests/IndicateAppleDisplayTests/Fixtures/scene-conformance-corpus.json` is
 authored and reviewed upstream by the reference rasterizer; this repository
 only ever compares against it. `ConformanceTests` pins its schema version,
 corpus version, digest, and entry counts, so an upstream regeneration cannot
 silently re-baseline this interpreter against a moved target.
 
-- `scripts/sync-corpus.sh [path-to-Pilotage]` — vendor the current upstream
+- `scripts/sync-corpus.sh [path-to-Indicate]` — vendor the current upstream
   corpus and update its provenance record. The pinned expectations in
   `ConformanceTests.swift` still have to be updated by hand, which is the
   point: a sync leaves a diff to review.
 - `scripts/check-corpus.sh` — fail on drift. It always verifies the vendored
   copy against its provenance record, and additionally compares against
-  upstream `HEAD` when a Pilotage checkout is available (`PILOTAGE_DIR`, or a
+  upstream `HEAD` when an Indicate checkout is available (`INDICATE_DIR`, or a
   sibling directory).
 
 The upstream comparison is the half that makes a regeneration turn this
 repository red, and it needs a checkout. CI currently runs the local half only
-and says so; a scheduled job with read access to Pilotage would close it.
+and says so; a scheduled job with read access to Indicate would close it.
 
 ## Build and test
 

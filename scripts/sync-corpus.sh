@@ -7,7 +7,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd "$script_dir/.." && pwd)"
-fixture="$repo_dir/Tests/InstrumentSceneKitTests/Fixtures/scene-conformance-corpus.json"
+fixture="$repo_dir/Tests/IndicateAppleDisplayTests/Fixtures/scene-conformance-corpus.json"
 record="$fixture.source"
 
 indicate_dir="${1:-${INDICATE_DIR:-$repo_dir/../Indicate}}"

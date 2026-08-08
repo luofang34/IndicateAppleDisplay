@@ -8,7 +8,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd "$script_dir/.." && pwd)"
-fixture="$repo_dir/Tests/InstrumentSceneKitTests/Fixtures/scene-conformance-corpus.json"
+fixture="$repo_dir/Tests/IndicateAppleDisplayTests/Fixtures/scene-conformance-corpus.json"
 record="$fixture.source"
 
 read_field() { sed -n "s/^$1=//p" "$record"; }

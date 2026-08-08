@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import InstrumentSceneKit
+@testable import IndicateAppleDisplay
 
 /// The corpus this backend is verified against.
 ///
@@ -61,7 +61,7 @@ private func loadCorpus() throws -> Corpus {
 
 /// Rebuilds a generator-described scene.
 ///
-/// The shapes mirror `pilotage-instrument-scene`'s encoder: a layer marker is
+/// The shapes mirror `indicate-instrument-scene`'s encoder: a layer marker is
 /// always followed by the mandatory envelope save, and closed by the matching
 /// restore before the end marker.
 private func generated(_ generator: Corpus.Generator) -> [UInt8] {

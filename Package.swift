@@ -3,19 +3,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "InstrumentSceneKit",
+    name: "IndicateAppleDisplay",
     platforms: [
         .iOS(.v17),
         .macOS(.v14),
     ],
     products: [
-        .library(name: "InstrumentSceneKit", targets: ["InstrumentSceneKit"]),
+        .library(name: "IndicateAppleDisplay", targets: ["IndicateAppleDisplay"]),
     ],
     targets: [
-        .target(name: "InstrumentSceneKit"),
+        .target(name: "IndicateAppleDisplay"),
         .testTarget(
-            name: "InstrumentSceneKitTests",
-            dependencies: ["InstrumentSceneKit"],
+            name: "IndicateAppleDisplayTests",
+            dependencies: ["IndicateAppleDisplay"],
             resources: [.copy("Fixtures")]
         ),
     ]

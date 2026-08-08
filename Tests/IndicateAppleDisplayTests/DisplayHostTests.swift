@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import InstrumentSceneKit
+@testable import IndicateAppleDisplay
 
 private func hex(_ text: String) -> [UInt8] {
     var result: [UInt8] = []

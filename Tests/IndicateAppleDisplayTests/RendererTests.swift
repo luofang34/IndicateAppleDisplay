@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import InstrumentSceneKit
+@testable import IndicateAppleDisplay
 
 private func context(_ size: Int = 64) throws -> CGContext {
     let context = try #require(CGContext(
