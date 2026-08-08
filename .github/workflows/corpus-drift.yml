@@ -1,0 +1,23 @@
+name: corpus-drift
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check out Indicate
+        uses: actions/checkout@v4
+        with:
+          repository: luofang34/Indicate
+          path: indicate-upstream
+          fetch-depth: 0
+      - name: compare the vendored corpus with upstream
+        env:
+          INDICATE_DIR: ${{ github.workspace }}/indicate-upstream
+          CORPUS_REQUIRE_UPSTREAM: "1"
+        run: ./scripts/check-corpus.sh

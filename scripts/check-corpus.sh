@@ -4,6 +4,9 @@
 # The value of pinning a corpus is that regenerating it upstream turns this
 # repository red. A vendored copy cannot do that by itself, so this check needs
 # a Indicate checkout: point INDICATE_DIR at one, or keep it beside this repo.
+# Without a checkout the upstream comparison is skipped, unless
+# CORPUS_REQUIRE_UPSTREAM is set — then a missing checkout is a failure, which
+# is what the scheduled drift sentinel wants.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,6 +31,12 @@ fi
 
 indicate_dir="${INDICATE_DIR:-$repo_dir/../Indicate}"
 if [[ ! -d "$indicate_dir/.git" ]]; then
+    if [[ -n "${CORPUS_REQUIRE_UPSTREAM:-}" ]]; then
+        echo "no Indicate checkout at $indicate_dir, and CORPUS_REQUIRE_UPSTREAM" >&2
+        echo "is set, so the upstream comparison is mandatory. Set INDICATE_DIR" >&2
+        echo "to a Indicate checkout." >&2
+        exit 1
+    fi
     echo "SKIPPED the upstream comparison: no Indicate checkout at $indicate_dir." >&2
     echo "Only the vendored copy's integrity was checked. Set INDICATE_DIR to" >&2
     echo "verify that upstream has not regenerated the corpus." >&2

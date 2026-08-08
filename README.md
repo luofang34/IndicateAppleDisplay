@@ -114,9 +114,13 @@ silently re-baseline this interpreter against a moved target.
   upstream `HEAD` when an Indicate checkout is available (`INDICATE_DIR`, or a
   sibling directory).
 
-The upstream comparison is the half that makes a regeneration turn this
-repository red, and it needs a checkout. CI currently runs the local half only
-and says so; a scheduled job with read access to Indicate would close it.
+Pull-request CI runs the local half only. It verifies the vendored copy
+against its provenance record and skips the upstream comparison, so a pull
+request stays pinned and deterministic. The `corpus-drift` workflow runs the
+full comparison on a schedule and on demand. It checks out Indicate, sets
+`INDICATE_DIR`, and fails when the checkout is missing or when upstream has
+regenerated the corpus. It never syncs the corpus: a drift is a diff to review
+by hand with `scripts/sync-corpus.sh`.
 
 ## Build and test
 
