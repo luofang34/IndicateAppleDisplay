@@ -13,6 +13,14 @@ let package = Package(
     ],
     targets: [
         .target(name: "IndicateAppleDisplay"),
+        // A developer sample, not a product: no library consumer can depend
+        // on it, and it stays out of every dependency closure but this
+        // repository's own.
+        .executableTarget(
+            name: "BackendGallery",
+            dependencies: ["IndicateAppleDisplay"],
+            path: "Examples/BackendGallery"
+        ),
         .testTarget(
             name: "IndicateAppleDisplayTests",
             dependencies: ["IndicateAppleDisplay"],

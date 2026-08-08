@@ -122,6 +122,38 @@ full comparison on a schedule and on demand. It checks out Indicate, sets
 regenerated the corpus. It never syncs the corpus: a drift is a diff to review
 by hand with `scripts/sync-corpus.sh`.
 
+## The backend gallery
+
+`Examples/BackendGallery` is a small macOS executable that renders selected
+corpus scenes and the display host's failure behaviour. It is a sample, not a
+product: it lives outside the library, and a consumer of the library does not
+depend on it.
+
+Run it from the repository root:
+
+```sh
+swift run BackendGallery
+```
+
+The window shows one row per case: a valid scene at two output sizes, the
+unknown-opcode policy both ways, a missing critical layer, a producer fault, a
+liveness trip, a recovery streak, glyph-backed text with and without an atlas,
+and a corpus-rejected scene. Every covered frame comes from `PanelDisplay` or
+`PanelHealth`, never from a hand-drawn overlay. Each row shows the layer mask,
+the unknown-opcode count, and the display reason. The header shows the IR
+version, the corpus version, and the corpus digest.
+
+The headless path exports the same cases as PNG images, writes a manifest, and
+verifies every outcome against its expected reason:
+
+```sh
+swift run BackendGallery --export .build/gallery
+```
+
+It exits with a non-zero status when a case does not match, so CI can use it as
+a smoke test. `scripts/ci.sh` runs it. Pass `--corpus <path>` to read a corpus
+from somewhere else.
+
 ## Build and test
 
 ```sh
