@@ -1,11 +1,11 @@
 {
   "schemaVersion": 2,
-  "corpusVersion": 3,
-  "generatedBy": "pilotage-instrument-raster REN-04 conformance reference",
+  "corpusVersion": 4,
+  "generatedBy": "indicate-instrument-raster REN-04 conformance reference",
   "simOnly": "Canvas/browser backend is SIM / NOT FOR FLIGHT",
   "canonicalization": "trace args are Q8.8 floor(v*256); non-finite as nan/inf/-inf",
   "review": {
-    "reason": "Add text-centered-multichar: a center-anchored multi-digit run at a readout-like size, pinning that both backends place centered readout values from the same nominal advance (DISP-02's width-aware readout fitting relies on that agreement).",
+    "reason": "Add frame-edge-overhang: ink crossing all four design-frame edges is a valid scene, not a fault — the gate accepts it, no raw-argument guard fires, and both backends replay the overhanging coordinates verbatim. The design-frame clip itself is surface-side and outside what the corpus records.",
     "approvedBy": "REN-04 owner; regenerated goldens require human review and are never rewritten by CI."
   },
   "budgets": {
@@ -19,7 +19,7 @@
     "coordLimitPx": 32767,
     "worstCaseFrameBytes": 67108864
   },
-  "corpusSha256": "7130efd29b19c2f0fb4622cefd7357dd4e6c038f70efa27e0adbebc4d03cdc6f",
+  "corpusSha256": "1fb8e6de2734ff7506843b05869f39d501f0926599636c6110a7e3b0c6e1625e",
   "entries": [
     {
       "name": "empty-background-canonical",
@@ -103,6 +103,20 @@
       "commandTrace": ["50:1", "01", "01", "03:61440,46080", "04:716", "20:-153600,0,153600,0", "02", "02", "51:1"],
       "interpreterRejects": null,
       "canvasMethods": ["save", "save", "translate:61440,46080", "rotate:716", "beginPath", "moveTo:-153600,0", "lineTo:153600,0", "stroke", "restore", "restore"],
+      "framingBoundaries": null
+    },
+    {
+      "name": "frame-edge-overhang",
+      "category": "valid",
+      "notes": "Ink crossing all four design-frame edges is a valid scene, not a fault: the gate accepts it, no raw-argument guard fires, and both backends replay the overhanging coordinates verbatim. The design-frame clip itself is surface-side, outside what the corpus records.",
+      "bytesHex": "0150010001010000100400ffffffff231100010000a0c10000a0c10000704200007042231100010000e6430000aa430000204200002042201000000020c200003443000002440000344302000051010001",
+      "framingValid": true,
+      "decode": { "ok": true, "error": null },
+      "gate": { "verdict": "accept", "error": null, "unknownOpcodes": 0, "layersPresent": 2, "layerCommands": [0, 6, 0, 0, 0, 0] },
+      "render": { "ok": true, "error": null },
+      "commandTrace": ["50:1", "01", "10:255,255,255,255", "23:F,-5120,-5120,15360,15360", "23:F,117760,87040,10240,10240", "20:-10240,46080,133120,46080", "02", "51:1"],
+      "interpreterRejects": null,
+      "canvasMethods": ["save", "fillRect:-5120,-5120,15360,15360", "fillRect:117760,87040,10240,10240", "beginPath", "moveTo:-10240,46080", "lineTo:133120,46080", "stroke", "restore"],
       "framingBoundaries": null
     },
     {

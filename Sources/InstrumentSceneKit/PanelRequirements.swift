@@ -35,12 +35,17 @@ public struct PanelRequirements: Equatable, Sendable {
     /// a PFD whose attitude band is missing is not a sparse PFD, it is a
     /// broken one.
     public let criticalLayers: Set<SceneLayer>
-    /// The scene-unit region the panel is authored in.
+    /// The smallest scene-unit frame the panel will emit into.
+    public let frameMin: CGSize
+    /// The largest scene-unit frame the panel will emit into.
+    public let frameMax: CGSize
+    /// The frame the panel's own evidence is pinned at.
     ///
-    /// This comes from the producer rather than being a constant here. A
-    /// backend that hard-codes one producer's design size cannot serve a
-    /// second panel family without being edited.
-    public let designFrame: CGRect
+    /// A producer emits at a frame the host asks for, so the host has to ask
+    /// for one. Asking for a canonical frame is what makes a painted frame
+    /// comparable with the recorded baselines; anything else is a frame no
+    /// artefact describes.
+    public let canonicalFrame: CGSize
     /// What to do with an opcode this revision does not know.
     public let unknownOpcodes: UnknownOpcodePolicy
 
@@ -48,14 +53,29 @@ public struct PanelRequirements: Equatable, Sendable {
         id: String,
         title: String,
         criticalLayers: Set<SceneLayer>,
-        designFrame: CGRect,
+        frameMin: CGSize,
+        frameMax: CGSize,
+        canonicalFrame: CGSize,
         unknownOpcodes: UnknownOpcodePolicy = .failFrame
     ) {
         self.id = id
         self.title = title
         self.criticalLayers = criticalLayers
-        self.designFrame = designFrame
+        self.frameMin = frameMin
+        self.frameMax = frameMax
+        self.canonicalFrame = canonicalFrame
         self.unknownOpcodes = unknownOpcodes
+    }
+
+    /// The frame to ask the producer for, given the pixels available.
+    ///
+    /// Returns the canonical frame. Every shipped panel declares
+    /// `frameMin == frameMax`, so the range is a single frame and there is
+    /// nothing to choose; when a panel offers a real range, the policy that
+    /// picks within it belongs here and wants evidence behind it rather than
+    /// a guess made now.
+    public func frame(fittingPixelSize _: CGSize) -> CGRect {
+        CGRect(origin: .zero, size: canonicalFrame)
     }
 
     /// Builds requirements from the wire mask a producer reports, one bit per
@@ -65,8 +85,9 @@ public struct PanelRequirements: Equatable, Sendable {
         id: String,
         title: String,
         criticalLayerMask: UInt8,
-        designWidth: Float,
-        designHeight: Float,
+        frameMin: CGSize,
+        frameMax: CGSize,
+        canonicalFrame: CGSize,
         unknownOpcodes: UnknownOpcodePolicy = .failFrame
     ) {
         var layers: Set<SceneLayer> = []
@@ -74,16 +95,23 @@ public struct PanelRequirements: Equatable, Sendable {
             guard let layer = SceneLayer(rawValue: UInt8(bit)) else { return nil }
             layers.insert(layer)
         }
-        guard designWidth > 0, designHeight > 0,
-              designWidth.isFinite, designHeight.isFinite else { return nil }
+        for size in [frameMin, frameMax, canonicalFrame] {
+            guard size.width > 0, size.height > 0,
+                  size.width.isFinite, size.height.isFinite else { return nil }
+        }
+        // A canonical frame outside the panel's own accepted range could never
+        // be rendered at the frame its evidence describes.
+        guard canonicalFrame.width >= frameMin.width,
+              canonicalFrame.height >= frameMin.height,
+              canonicalFrame.width <= frameMax.width,
+              canonicalFrame.height <= frameMax.height else { return nil }
         self.init(
             id: id,
             title: title,
             criticalLayers: layers,
-            designFrame: CGRect(
-                x: 0, y: 0,
-                width: CGFloat(designWidth), height: CGFloat(designHeight)
-            ),
+            frameMin: frameMin,
+            frameMax: frameMax,
+            canonicalFrame: canonicalFrame,
             unknownOpcodes: unknownOpcodes
         )
     }

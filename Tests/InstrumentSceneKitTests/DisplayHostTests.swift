@@ -30,7 +30,9 @@ private func requirements(
 ) -> PanelRequirements {
     PanelRequirements(
         id: "test", title: "Test",
-        criticalLayers: critical, designFrame: frame, unknownOpcodes: unknown
+        criticalLayers: critical,
+        frameMin: frame.size, frameMax: frame.size, canonicalFrame: frame.size,
+        unknownOpcodes: unknown
     )
 }
 
@@ -41,7 +43,7 @@ private final class StubProducer: SceneProducing {
 
     init(bytes: [UInt8]) { self.bytes = bytes }
 
-    func frame() throws -> SceneFrame {
+    func frame(designFrame _: CGRect) throws -> SceneFrame {
         if let fault { throw ProducerFault(reason: fault) }
         return SceneFrame(bytes: bytes, generation: generation)
     }
@@ -254,16 +256,29 @@ func paintFailuresCarryTheDiagnosticTheirRemedyNeeds() {
 func anUnplaceableCriticalityBitIsRejectedRatherThanTreatedAsSatisfied() {
     #expect(PanelRequirements(
         id: "future", title: "Future", criticalLayerMask: 1 << 6,
-        designWidth: 480, designHeight: 360
+        frameMin: CGSize(width: 480, height: 360),
+        frameMax: CGSize(width: 480, height: 360),
+        canonicalFrame: CGSize(width: 480, height: 360)
+    ) == nil)
+
+    // A canonical frame the panel's own range excludes is refused too: it
+    // names a frame the evidence describes and the panel will not emit.
+    #expect(PanelRequirements(
+        id: "inconsistent", title: "Inconsistent", criticalLayerMask: 1 << 1,
+        frameMin: CGSize(width: 480, height: 360),
+        frameMax: CGSize(width: 480, height: 360),
+        canonicalFrame: CGSize(width: 960, height: 720)
     ) == nil)
 
     let known = PanelRequirements(
         id: "pfd", title: "PFD",
         criticalLayerMask: (1 << 1) | (1 << 2) | (1 << 4),
-        designWidth: 480, designHeight: 360
+        frameMin: CGSize(width: 480, height: 360),
+        frameMax: CGSize(width: 480, height: 360),
+        canonicalFrame: CGSize(width: 480, height: 360)
     )
     #expect(known?.criticalLayers == [.attitude, .tapes, .annunciation])
-    #expect(known?.designFrame.width == 480)
+    #expect(known?.canonicalFrame.width == 480)
 }
 
 // MARK: - Glyph cache

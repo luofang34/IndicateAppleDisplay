@@ -33,18 +33,26 @@ public struct ProducerFault: Error, Equatable, Sendable {
 /// is never handed one by whatever delivered the data. Repainting per arriving
 /// packet couples the display to the link and is the named anti-pattern.
 public protocol SceneProducing: AnyObject {
-    func frame() throws -> SceneFrame
+    /// The scene to show now, emitted into `designFrame`.
+    ///
+    /// The frame is an input because a panel emits geometry for the frame it
+    /// is asked for rather than a fixed picture a backend rescales. Producing
+    /// at one frame and mapping at another silently misplaces every coordinate,
+    /// so the host passes the same frame to both.
+    func frame(designFrame: CGRect) throws -> SceneFrame
 }
 
 /// A producer backed by a closure.
 public final class ClosureSceneProducer: SceneProducing {
-    private let body: () throws -> SceneFrame
+    private let body: (CGRect) throws -> SceneFrame
 
-    public init(_ body: @escaping () throws -> SceneFrame) {
+    public init(_ body: @escaping (CGRect) throws -> SceneFrame) {
         self.body = body
     }
 
-    public func frame() throws -> SceneFrame { try body() }
+    public func frame(designFrame: CGRect) throws -> SceneFrame {
+        try body(designFrame)
+    }
 }
 
 /// What one frame attempt produced.
@@ -134,9 +142,13 @@ public final class PanelDisplay {
         pixelHeight: Int,
         nowMs: Double
     ) -> PanelFrameOutcome {
+        let designFrame = requirements.frame(fittingPixelSize: CGSize(
+            width: CGFloat(pixelWidth),
+            height: CGFloat(pixelHeight)
+        ))
         let frame: SceneFrame
         do {
-            frame = try producer.frame()
+            frame = try producer.frame(designFrame: designFrame)
         } catch let fault as ProducerFault {
             return fail(fault.reason, nowMs: nowMs, width: pixelWidth, height: pixelHeight)
         } catch {
@@ -162,7 +174,7 @@ public final class PanelDisplay {
                 frame.bytes,
                 pixelWidth: pixelWidth,
                 pixelHeight: pixelHeight,
-                logicalFrame: requirements.designFrame,
+                logicalFrame: designFrame,
                 background: background
             )
         } catch {

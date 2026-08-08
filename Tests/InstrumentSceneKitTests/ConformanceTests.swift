@@ -119,7 +119,7 @@ func corpusIsThePinnedRevision() throws {
     #expect(corpus.schemaVersion == expectedSchemaVersion)
     #expect(corpus.corpusVersion == expectedCorpusVersion)
     #expect(corpus.corpusSha256 == expectedCorpusSha256)
-    #expect(corpus.entries.count == 42)
+    #expect(corpus.entries.count == 43)
 }
 
 @Test
@@ -186,7 +186,7 @@ func layerGateAgreesWithTheCorpusVerdict() throws {
             rejected += 1
         }
     }
-    #expect(accepted == 25, "corpus has 25 accepted scenes")
+    #expect(accepted == 26, "corpus has 26 accepted scenes")
     #expect(rejected == 17, "corpus has 17 rejected scenes")
 }
 
