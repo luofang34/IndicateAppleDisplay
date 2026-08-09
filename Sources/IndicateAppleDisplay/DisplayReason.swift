@@ -38,6 +38,10 @@ public enum DisplayReason: UInt16, Sendable, CaseIterable {
     case sceneLayerContract = 9
     /// The scene omits a layer this panel declares critical.
     case sceneCriticalLayersMissing = 10
+    /// The producer could not decode a complete state frame.
+    case stateMalformed = 11
+    /// The producer refused an invalid panel configuration.
+    case configInvalid = 12
 
     // Backend-observed.
 
