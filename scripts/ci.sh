@@ -15,4 +15,9 @@ swift run --package-path "$repo_dir" BackendGallery \
     --corpus "$repo_dir/Tests/IndicateAppleDisplayTests/Fixtures/scene-conformance-corpus.json" \
     --export "$gallery_dir"
 
+# This gate uses reviewed corpus scenes. It checks 60 Hz and 120 Hz schedules
+# against the 8 ms budget. It verifies the pixel pool and steady heap use.
+swift run --package-path "$repo_dir" -c release PanelBenchmark \
+    --corpus "$repo_dir/Tests/IndicateAppleDisplayTests/Fixtures/scene-conformance-corpus.json"
+
 "$script_dir/check-corpus.sh"

@@ -14,13 +14,12 @@ public typealias PlatformViewBase = NSView
 
 #if canImport(UIKit) || canImport(AppKit)
 
-/// A panel view that repaints on the display's own cadence.
+/// A panel view that presents completed frames on the display cadence.
 ///
 /// Ingest rate is decoupled from frame rate by construction: telemetry writers
-/// update state, and this view asks its ``PanelDisplay`` for a frame once per
-/// display refresh. Repainting per arriving packet — the pattern this exists
-/// to avoid — ties display work to link traffic, so a chatty link burns frames
-/// redrawing identical content and a quiet one leaves the display unattended.
+/// update state, and this view submits the latest frame size once per display
+/// refresh. A ``PanelRenderWorker`` produces and paints each accepted request
+/// outside the main actor.
 ///
 /// The watchdog runs on a timer rather than on the display link, so a producer
 /// that stops advancing is caught even while frames keep being requested. Both
@@ -51,7 +50,18 @@ public final class InstrumentPanelView: PlatformViewBase {
 
     private var link: CADisplayLink?
     private var watchdog: Timer?
+    private var worker: PanelRenderWorker?
+    private var failureWorker: FailurePageRenderWorker?
+    private var presentedFailure: FailurePresentation?
     private let proxy = DisplayLinkProxy()
+
+    private struct FailurePresentation: Equatable {
+        let pixelWidth: Int
+        let pixelHeight: Int
+        let scale: CGFloat
+        let reason: DisplayReason
+        let presentationEpoch: UInt64
+    }
 
     public init(display: PanelDisplay) {
         self.display = display
@@ -91,6 +101,8 @@ public final class InstrumentPanelView: PlatformViewBase {
 
     private func start() {
         guard link == nil else { return }
+        worker = PanelRenderWorker(display: display)
+        failureWorker = FailurePageRenderWorker()
         // A display link retains its target, so targeting the view directly
         // would keep it alive for as long as the link runs. The proxy holds
         // the view weakly and tears the link down once the view is gone.
@@ -99,6 +111,12 @@ public final class InstrumentPanelView: PlatformViewBase {
         #else
         let link = displayLink(target: proxy, selector: #selector(DisplayLinkProxy.tick))
         #endif
+        let framesPerSecond = Float(max(display.requirements.preferredFramesPerSecond, 1))
+        link.preferredFrameRateRange = CAFrameRateRange(
+            minimum: framesPerSecond,
+            maximum: framesPerSecond,
+            preferred: framesPerSecond
+        )
         link.add(to: .main, forMode: .common)
         self.link = link
 
@@ -118,6 +136,11 @@ public final class InstrumentPanelView: PlatformViewBase {
         link = nil
         watchdog?.invalidate()
         watchdog = nil
+        worker?.invalidate()
+        worker = nil
+        failureWorker?.invalidate()
+        failureWorker = nil
+        presentedFailure = nil
     }
 
     // MARK: - Frames
@@ -127,11 +150,12 @@ public final class InstrumentPanelView: PlatformViewBase {
     }
 
     fileprivate func watchdogTick() {
-        let result = display.tick(nowMs: CACurrentMediaTime() * 1000)
+        let result = display.tickForPresentation(nowMs: CACurrentMediaTime() * 1000)
         // A liveness trip must cover the panel even though no frame arrived to
         // carry the cover — that is the whole point of an independent tick.
-        guard result.showFailure else { return }
-        cover(reason: result.reason)
+        guard result.display.showFailure else { return }
+        worker?.discardOutstanding()
+        cover(reason: result.display.reason, presentationEpoch: result.presentationEpoch)
     }
 
     private func renderFrame(nowMs: Double) {
@@ -140,23 +164,58 @@ public final class InstrumentPanelView: PlatformViewBase {
         let height = Int((bounds.height * scale).rounded())
         guard width > 0, height > 0 else { return }
 
-        let outcome = display.render(pixelWidth: width, pixelHeight: height, nowMs: nowMs)
-        if let image = outcome.image {
-            present(image, scale: scale)
+        guard let worker else { return }
+        worker.submit(pixelWidth: width, pixelHeight: height, nowMs: nowMs) {
+            [weak self, weak worker] outcome in
+            guard let self, self.worker === worker else { return }
+            if let image = outcome.image {
+                self.failureWorker?.discardOutstanding()
+                self.present(image, scale: scale)
+                self.presentedFailure = outcome.showingFailure
+                    ? FailurePresentation(
+                        pixelWidth: width,
+                        pixelHeight: height,
+                        scale: scale,
+                        reason: outcome.reason,
+                        presentationEpoch: outcome.presentationEpoch
+                    )
+                    : nil
+            }
+            self.onOutcome?(outcome)
         }
-        onOutcome?(outcome)
     }
 
-    private func cover(reason: DisplayReason) {
+    private func cover(reason: DisplayReason, presentationEpoch: UInt64) {
         let scale = backingScale
         let width = Int((bounds.width * scale).rounded())
         let height = Int((bounds.height * scale).rounded())
-        guard width > 0, height > 0,
-              let image = FailurePage.image(
-                  pixelWidth: width, pixelHeight: height, reason: reason
-              )
-        else { return }
-        present(image, scale: scale)
+        let presentation = FailurePresentation(
+            pixelWidth: width,
+            pixelHeight: height,
+            scale: scale,
+            reason: reason,
+            presentationEpoch: presentationEpoch
+        )
+        guard width > 0,
+              height > 0,
+              presentation != presentedFailure,
+              let failureWorker else { return }
+        failureWorker.submit(pixelWidth: width, pixelHeight: height, reason: reason) {
+            [weak self, weak failureWorker] result in
+            guard let self,
+                  self.failureWorker === failureWorker,
+                  result.pixelWidth == presentation.pixelWidth,
+                  result.pixelHeight == presentation.pixelHeight,
+                  result.reason == presentation.reason else { return }
+            let didPresent = self.display.presentFailureIfCurrent(
+                epoch: presentation.presentationEpoch,
+                reason: presentation.reason
+            ) {
+                self.present(result.image, scale: presentation.scale)
+                self.presentedFailure = presentation
+            }
+            guard didPresent else { return }
+        }
     }
 
     private func present(_ image: CGImage, scale: CGFloat) {

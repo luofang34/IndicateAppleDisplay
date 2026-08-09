@@ -32,7 +32,8 @@ public struct ProducerFault: Error, Equatable, Sendable {
 /// Deliberately pull-shaped. A display asks for a frame on its own cadence; it
 /// is never handed one by whatever delivered the data. Repainting per arriving
 /// packet couples the display to the link and is the named anti-pattern.
-public protocol SceneProducing: AnyObject {
+/// The render worker can call the producer from a background thread.
+public protocol SceneProducing: AnyObject, Sendable {
     /// The scene to show now, emitted into `designFrame`.
     ///
     /// The frame is an input because a panel emits geometry for the frame it
@@ -44,9 +45,9 @@ public protocol SceneProducing: AnyObject {
 
 /// A producer backed by a closure.
 public final class ClosureSceneProducer: SceneProducing {
-    private let body: (CGRect) throws -> SceneFrame
+    private let body: @Sendable (CGRect) throws -> SceneFrame
 
-    public init(_ body: @escaping (CGRect) throws -> SceneFrame) {
+    public init(_ body: @escaping @Sendable (CGRect) throws -> SceneFrame) {
         self.body = body
     }
 
@@ -56,7 +57,7 @@ public final class ClosureSceneProducer: SceneProducing {
 }
 
 /// What one frame attempt produced.
-public struct PanelFrameOutcome {
+public struct PanelFrameOutcome: Sendable {
     /// What to show. `nil` only when even the failure page could not be built.
     public let image: CGImage?
     /// Whether `image` is the failure page rather than the panel.
@@ -67,6 +68,11 @@ public struct PanelFrameOutcome {
     public let generation: UInt32?
     /// What the scene contained, when it validated.
     public let report: SceneLayerReport?
+    /// The failure latch state after this frame attempt.
+    public let health: PanelHealthSnapshot
+    /// Pixel-buffer metrics after this frame attempt.
+    public let pixelBuffers: PanelPixelBufferMetrics
+    let presentationEpoch: UInt64
 
     /// Everything about this frame except the frame itself.
     ///
@@ -98,6 +104,26 @@ public struct PanelFrameSummary: Equatable, Sendable {
     public let unknownOpcodes: Int
 }
 
+enum PanelFramePreparation: Sendable {
+    case failed(reason: DisplayReason, pixelBuffers: PanelPixelBufferMetrics)
+    case ready(
+        frame: SceneFrame,
+        report: SceneLayerReport,
+        image: CGImage,
+        pixelBuffers: PanelPixelBufferMetrics
+    )
+}
+
+struct PanelFrameCommit: Sendable {
+    let image: CGImage?
+    let showingFailure: Bool
+    let reason: DisplayReason
+    let generation: UInt32?
+    let report: SceneLayerReport?
+    let health: PanelHealthSnapshot
+    let presentationEpoch: UInt64
+}
+
 /// One panel's transactional frame pipeline: produce, validate, paint, commit.
 ///
 /// Nothing partial and nothing stale ever becomes visible. A frame is painted
@@ -108,15 +134,18 @@ public struct PanelFrameSummary: Equatable, Sendable {
 /// This is deliberately not a view. A tester, an EFB, a simulator-side
 /// instrument window, and a headless capture all need the same discipline, and
 /// only the last step — where the image goes — differs.
-public final class PanelDisplay {
+public final class PanelDisplay: @unchecked Sendable {
     /// What this panel needs before a frame may be committed.
     public let requirements: PanelRequirements
     /// The failure latch and liveness watchdog.
-    public private(set) var health: PanelHealth
+    public var health: PanelHealth { healthStore.value() }
 
     private let renderer: SceneRenderer
     private let producer: any SceneProducing
     private let background: CGColor?
+    private let renderLock = NSLock()
+    private let healthStore: PanelHealthStore
+    private var pixelBuffers = PixelBufferPool()
 
     public init(
         requirements: PanelRequirements,
@@ -133,15 +162,60 @@ public final class PanelDisplay {
         // survives across frames. Building a renderer per frame would rebuild
         // every glyph every frame.
         renderer = SceneRenderer(atlas: atlas)
-        health = PanelHealth(policy: policy, nowMs: nowMs)
+        healthStore = PanelHealthStore(PanelHealth(policy: policy, nowMs: nowMs))
     }
 
     /// Produces, validates, and paints one frame.
-    public func render(
+    ///
+    /// This function blocks until the complete frame pipeline finishes. Use
+    /// ``PanelRenderWorker`` in an interactive display host.
+    public func renderBlocking(
         pixelWidth: Int,
         pixelHeight: Int,
         nowMs: Double
     ) -> PanelFrameOutcome {
+        let preparation = prepareFrameForWorkerBlocking(
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight
+        )
+        let commit = commitHealth(preparation, nowMs: nowMs)
+        return materializeForWorker(
+            commit,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight
+        )
+    }
+
+    func prepareFrameForWorkerBlocking(
+        pixelWidth: Int,
+        pixelHeight: Int
+    ) -> PanelFramePreparation {
+        renderLock.lock()
+        defer { renderLock.unlock() }
+        return prepareFrameBlocking(pixelWidth: pixelWidth, pixelHeight: pixelHeight)
+    }
+
+    func commitHealthForWorker(
+        _ preparation: PanelFramePreparation,
+        nowMs: Double
+    ) -> PanelFrameCommit {
+        commitHealth(preparation, nowMs: nowMs)
+    }
+
+    func materializeForWorker(
+        _ commit: PanelFrameCommit,
+        pixelWidth: Int,
+        pixelHeight: Int
+    ) -> PanelFrameOutcome {
+        renderLock.lock()
+        defer { renderLock.unlock() }
+        return materialize(commit, pixelWidth: pixelWidth, pixelHeight: pixelHeight)
+    }
+
+    private func prepareFrameBlocking(
+        pixelWidth: Int,
+        pixelHeight: Int
+    ) -> PanelFramePreparation {
         let designFrame = requirements.frame(fittingPixelSize: CGSize(
             width: CGFloat(pixelWidth),
             height: CGFloat(pixelHeight)
@@ -150,68 +224,129 @@ public final class PanelDisplay {
         do {
             frame = try producer.frame(designFrame: designFrame)
         } catch let fault as ProducerFault {
-            return fail(fault.reason, nowMs: nowMs, width: pixelWidth, height: pixelHeight)
+            return .failed(reason: fault.reason, pixelBuffers: pixelBuffers.metrics)
         } catch {
-            return fail(.renderTrap, nowMs: nowMs, width: pixelWidth, height: pixelHeight)
+            return .failed(reason: .renderTrap, pixelBuffers: pixelBuffers.metrics)
         }
 
         let report: SceneLayerReport
         do {
             report = try SceneValidator.validate(frame.bytes)
         } catch {
-            return fail(
-                error.displayReason, nowMs: nowMs,
-                width: pixelWidth, height: pixelHeight
-            )
+            return .failed(reason: error.displayReason, pixelBuffers: pixelBuffers.metrics)
         }
         if let rejection = report.rejection(requirements) {
-            return fail(rejection, nowMs: nowMs, width: pixelWidth, height: pixelHeight)
+            return .failed(reason: rejection, pixelBuffers: pixelBuffers.metrics)
         }
 
-        let painted: CGImage
         do {
-            painted = try renderer.paintedImage(
+            let image = try renderer.paintedImage(
                 frame.bytes,
                 pixelWidth: pixelWidth,
                 pixelHeight: pixelHeight,
                 logicalFrame: designFrame,
-                background: background
+                background: background,
+                buffers: &pixelBuffers
+            )
+            return .ready(
+                frame: frame,
+                report: report,
+                image: image,
+                pixelBuffers: pixelBuffers.metrics
             )
         } catch {
-            return fail(
-                error.displayReason, nowMs: nowMs,
-                width: pixelWidth, height: pixelHeight
-            )
+            return .failed(reason: error.displayReason, pixelBuffers: pixelBuffers.metrics)
         }
+    }
 
-        let display = health.reportSuccess(nowMs: nowMs, generation: frame.generation)
-        // A validated frame does not clear a latch on its own: the recovery
-        // streak must complete first, so the page stays covered until the
-        // pipeline has proved itself.
-        guard !display.showFailure else {
-            return PanelFrameOutcome(
-                image: FailurePage.image(
-                    pixelWidth: pixelWidth, pixelHeight: pixelHeight, reason: display.reason
-                ),
+    private func commitHealth(
+        _ preparation: PanelFramePreparation,
+        nowMs: Double
+    ) -> PanelFrameCommit {
+        switch preparation {
+        case let .failed(reason, _):
+            let update = healthStore.reportFailure(nowMs: nowMs, reason: reason)
+            return PanelFrameCommit(
+                image: nil,
                 showingFailure: true,
-                reason: display.reason,
+                reason: update.display.reason,
+                generation: nil,
+                report: nil,
+                health: update.snapshot,
+                presentationEpoch: update.presentationEpoch
+            )
+        case let .ready(frame, report, image, _):
+            let update = healthStore.reportSuccess(
+                nowMs: nowMs,
+                generation: frame.generation
+            )
+            return PanelFrameCommit(
+                image: update.display.showFailure ? nil : image,
+                showingFailure: update.display.showFailure,
+                reason: update.display.reason,
                 generation: frame.generation,
-                report: report
+                report: report,
+                health: update.snapshot,
+                presentationEpoch: update.presentationEpoch
             )
         }
+    }
+
+    private func materialize(
+        _ commit: PanelFrameCommit,
+        pixelWidth: Int,
+        pixelHeight: Int
+    ) -> PanelFrameOutcome {
+        let image = commit.showingFailure
+            ? pixelBuffers.makeFailureImage(
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight,
+                reason: commit.reason
+            )
+            : commit.image
         return PanelFrameOutcome(
-            image: painted,
-            showingFailure: false,
-            reason: .ok,
-            generation: frame.generation,
-            report: report
+            image: image,
+            showingFailure: commit.showingFailure,
+            reason: commit.reason,
+            generation: commit.generation,
+            report: commit.report,
+            health: commit.health,
+            pixelBuffers: pixelBuffers.metrics,
+            presentationEpoch: commit.presentationEpoch
+        )
+    }
+
+    func presentIfCurrent(_ outcome: PanelFrameOutcome, body: () -> Void) -> Bool {
+        healthStore.presentIfCurrent(
+            epoch: outcome.presentationEpoch,
+            display: PanelHealthDisplay(
+                showFailure: outcome.showingFailure,
+                reason: outcome.reason
+            ),
+            body: body
+        )
+    }
+
+    func presentFailureIfCurrent(
+        epoch: UInt64,
+        reason: DisplayReason,
+        body: () -> Void
+    ) -> Bool {
+        healthStore.presentIfCurrent(
+            epoch: epoch,
+            display: PanelHealthDisplay(showFailure: true, reason: reason),
+            body: body
         )
     }
 
     /// Watchdog tick, scheduled independently of the render loop.
     @discardableResult
     public func tick(nowMs: Double) -> PanelHealthDisplay {
-        health.tick(nowMs: nowMs)
+        healthStore.tick(nowMs: nowMs)
+    }
+
+    func tickForPresentation(nowMs: Double) -> PanelHealthUpdate {
+        healthStore.tickForPresentation(nowMs: nowMs)
     }
 
     /// Latches a failure the host observed outside this pipeline — a producer
@@ -221,29 +356,12 @@ public final class PanelDisplay {
         _ reason: DisplayReason,
         nowMs: Double
     ) -> PanelHealthDisplay {
-        health.reportFailure(nowMs: nowMs, reason: reason)
+        healthStore.reportFailure(nowMs: nowMs, reason: reason).display
     }
 
     /// Clears the latch after an explicit producer reinitialization.
     public func reset(nowMs: Double) {
-        health.reset(nowMs: nowMs)
+        healthStore.reset(nowMs: nowMs)
     }
 
-    private func fail(
-        _ reason: DisplayReason,
-        nowMs: Double,
-        width: Int,
-        height: Int
-    ) -> PanelFrameOutcome {
-        let display = health.reportFailure(nowMs: nowMs, reason: reason)
-        return PanelFrameOutcome(
-            image: FailurePage.image(
-                pixelWidth: width, pixelHeight: height, reason: display.reason
-            ),
-            showingFailure: true,
-            reason: display.reason,
-            generation: nil,
-            report: nil
-        )
-    }
 }
