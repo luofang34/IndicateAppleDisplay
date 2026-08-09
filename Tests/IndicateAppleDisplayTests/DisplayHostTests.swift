@@ -66,7 +66,7 @@ private final class CountingAtlas: GlyphAtlas, @unchecked Sendable {
 @Test
 func aHealthyFrameCommitsAtTheRequestedSize() {
     let display = PanelDisplay(requirements: requirements(), producer: StubProducer(bytes: attitudeScene))
-    let outcome = display.renderBlocking(pixelWidth: 240, pixelHeight: 180, nowMs: 0)
+    let outcome = display.render(pixelWidth: 240, pixelHeight: 180, nowMs: 0)
     #expect(!outcome.showingFailure)
     #expect(outcome.reason == .ok)
     #expect(outcome.image?.width == 240)
