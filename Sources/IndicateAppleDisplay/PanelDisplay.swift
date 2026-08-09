@@ -186,6 +186,18 @@ public final class PanelDisplay: @unchecked Sendable {
         )
     }
 
+    /// Produces, validates, and paints one frame synchronously.
+    ///
+    /// Interactive display hosts should use ``PanelRenderWorker`` so this work
+    /// does not run on the main actor.
+    public func render(
+        pixelWidth: Int,
+        pixelHeight: Int,
+        nowMs: Double
+    ) -> PanelFrameOutcome {
+        renderBlocking(pixelWidth: pixelWidth, pixelHeight: pixelHeight, nowMs: nowMs)
+    }
+
     func prepareFrameForWorkerBlocking(
         pixelWidth: Int,
         pixelHeight: Int
