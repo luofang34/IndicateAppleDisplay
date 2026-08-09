@@ -26,7 +26,7 @@ struct GalleryItem {
 private let designSize = CGSize(width: 480, height: 360)
 
 /// A producer over fixed scene bytes, advancing one generation per frame.
-private final class StubProducer: SceneProducing {
+private final class StubProducer: SceneProducing, @unchecked Sendable {
     var bytes: [UInt8]
     var generation: UInt32 = 0
     var fault: DisplayReason?
@@ -35,7 +35,7 @@ private final class StubProducer: SceneProducing {
 
     func frame(designFrame _: CGRect) throws -> SceneFrame {
         if let fault { throw ProducerFault(reason: fault) }
-        generation += 1
+        generation &+= 1
         return SceneFrame(bytes: bytes, generation: generation)
     }
 }
@@ -98,7 +98,7 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
     let pfd = try corpus.bytes(for: "multi-layer-pfd")
     for (suffix, width, height) in [("1x", 480, 360), ("2x", 960, 720)] {
         let outcome = display(scene: pfd, critical: [.attitude, .tapes, .annunciation])
-            .render(pixelWidth: width, pixelHeight: height, nowMs: 0)
+            .renderBlocking(pixelWidth: width, pixelHeight: height, nowMs: 0)
         items.append(try item(
             name: "valid-pfd-\(suffix)",
             detail: "Corpus multi-layer-pfd, accepted, rendered at \(width)x\(height) pixels",
@@ -110,7 +110,7 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
     // One corpus scene with an opcode this revision does not know, both policies.
     let unknownScene = try corpus.bytes(for: "unknown-opcode-counted")
     let covered = display(scene: unknownScene, critical: [.attitude])
-        .render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+        .renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     items.append(try item(
         name: "unknown-opcode-fail-frame",
         detail: "Corpus unknown-opcode-counted under the default policy: the frame fails visibly",
@@ -118,7 +118,7 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
         expectedFailure: true, expectedReason: .unknownOpcode
     ))
     let skipped = display(scene: unknownScene, critical: [.attitude], unknown: .countAndSkip)
-        .render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+        .renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     items.append(try item(
         name: "unknown-opcode-count-and-skip",
         detail: "The same scene under countAndSkip: painted, with the unknown opcode counted",
@@ -129,7 +129,7 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
     // An accepted scene that does not carry a layer the panel declares critical.
     let attitude = try corpus.bytes(for: "attitude-every-drawing-opcode")
     let missing = display(scene: attitude, critical: [.attitude, .guidance])
-        .render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+        .renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     items.append(try item(
         name: "missing-critical-layer",
         detail: "Corpus attitude-every-drawing-opcode shown as a guidance panel: not sparse, broken",
@@ -144,9 +144,9 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
         producer: producer,
         atlas: GalleryAtlas()
     )
-    _ = host.render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+    _ = host.renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     producer.fault = .stateWriteFailed
-    let faulted = host.render(pixelWidth: 480, pixelHeight: 360, nowMs: 16)
+    let faulted = host.renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 16)
     items.append(try item(
         name: "producer-fault",
         detail: "The producer threw after a healthy frame: the panel covers instead of going stale",
@@ -160,7 +160,7 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
         critical: [.attitude, .tapes, .annunciation],
         policy: PanelHealthPolicy(livenessDeadlineMs: 1000, recoveryFrames: 30, tickIntervalMs: 250)
     )
-    let healthy = watched.render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+    let healthy = watched.renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     for now in stride(from: 250.0, through: 1000.0, by: 250.0) {
         guard !watched.tick(nowMs: now).showFailure else {
             throw GalleryError.earlyLatch(now)
@@ -196,10 +196,10 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
             livenessDeadlineMs: 60_000, recoveryFrames: 3, tickIntervalMs: 250
         )
     )
-    _ = recoveringHost.render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+    _ = recoveringHost.renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     recovering.fault = nil
     for frame in 1...3 {
-        let outcome = recoveringHost.render(
+        let outcome = recoveringHost.renderBlocking(
             pixelWidth: 480, pixelHeight: 360, nowMs: Double(frame) * 16
         )
         let cleared = frame == 3
@@ -216,7 +216,7 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
     // Glyph-backed text, and the refusal to guess when no atlas is injected.
     let text = try corpus.bytes(for: "text-covered")
     let withAtlas = display(scene: text, critical: [.attitude])
-        .render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+        .renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     items.append(try item(
         name: "glyph-text",
         detail: "Corpus text-covered with an injected atlas: glyphs paint from the pack",
@@ -224,7 +224,7 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
         expectedFailure: false, expectedReason: .ok
     ))
     let noAtlas = display(scene: text, critical: [.attitude], atlas: nil)
-        .render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+        .renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     items.append(try item(
         name: "glyph-text-no-atlas",
         detail: "The same scene without an atlas: no system-font fallback, the frame fails visibly",
@@ -235,7 +235,7 @@ func galleryItems(corpus: CorpusFile) throws -> [GalleryItem] {
     // A corpus-rejected scene: the layer gate fails the frame before any paint.
     let rejected = try corpus.bytes(for: "duplicate-layer")
     let gated = display(scene: rejected, critical: [.attitude])
-        .render(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
+        .renderBlocking(pixelWidth: 480, pixelHeight: 360, nowMs: 0)
     items.append(try item(
         name: "rejected-duplicate-layer",
         detail: "Corpus duplicate-layer, rejected by the layer gate: nothing partial is visible",

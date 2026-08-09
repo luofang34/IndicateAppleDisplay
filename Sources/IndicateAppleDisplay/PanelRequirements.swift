@@ -48,6 +48,8 @@ public struct PanelRequirements: Equatable, Sendable {
     public let canonicalFrame: CGSize
     /// What to do with an opcode this revision does not know.
     public let unknownOpcodes: UnknownOpcodePolicy
+    /// The display refresh rate that this panel requires.
+    public let preferredFramesPerSecond: Int
 
     public init(
         id: String,
@@ -56,7 +58,8 @@ public struct PanelRequirements: Equatable, Sendable {
         frameMin: CGSize,
         frameMax: CGSize,
         canonicalFrame: CGSize,
-        unknownOpcodes: UnknownOpcodePolicy = .failFrame
+        unknownOpcodes: UnknownOpcodePolicy = .failFrame,
+        preferredFramesPerSecond: Int = 60
     ) {
         self.id = id
         self.title = title
@@ -65,6 +68,7 @@ public struct PanelRequirements: Equatable, Sendable {
         self.frameMax = frameMax
         self.canonicalFrame = canonicalFrame
         self.unknownOpcodes = unknownOpcodes
+        self.preferredFramesPerSecond = preferredFramesPerSecond
     }
 
     /// The frame to ask the producer for, given the pixels available.
@@ -88,7 +92,8 @@ public struct PanelRequirements: Equatable, Sendable {
         frameMin: CGSize,
         frameMax: CGSize,
         canonicalFrame: CGSize,
-        unknownOpcodes: UnknownOpcodePolicy = .failFrame
+        unknownOpcodes: UnknownOpcodePolicy = .failFrame,
+        preferredFramesPerSecond: Int = 60
     ) {
         var layers: Set<SceneLayer> = []
         for bit in 0..<8 where criticalLayerMask & (1 << bit) != 0 {
@@ -104,7 +109,8 @@ public struct PanelRequirements: Equatable, Sendable {
         guard canonicalFrame.width >= frameMin.width,
               canonicalFrame.height >= frameMin.height,
               canonicalFrame.width <= frameMax.width,
-              canonicalFrame.height <= frameMax.height else { return nil }
+              canonicalFrame.height <= frameMax.height,
+              preferredFramesPerSecond > 0 else { return nil }
         self.init(
             id: id,
             title: title,
@@ -112,7 +118,8 @@ public struct PanelRequirements: Equatable, Sendable {
             frameMin: frameMin,
             frameMax: frameMax,
             canonicalFrame: canonicalFrame,
-            unknownOpcodes: unknownOpcodes
+            unknownOpcodes: unknownOpcodes,
+            preferredFramesPerSecond: preferredFramesPerSecond
         )
     }
 }

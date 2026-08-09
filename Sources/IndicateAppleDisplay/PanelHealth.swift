@@ -103,17 +103,17 @@ public struct PanelHealth: Equatable, Sendable {
         let advanced = lastGeneration == nil || generation != lastGeneration
         lastGeneration = generation
         guard advanced else {
-            counters.duplicates += 1
+            counters.duplicates &+= 1
             return display
         }
         lastAdvanceMs = nowMs
         if latched {
-            goodStreak += 1
+            goodStreak &+= 1
             if goodStreak >= policy.recoveryFrames {
                 latched = false
                 reason = .ok
                 goodStreak = 0
-                counters.recoveries += 1
+                counters.recoveries &+= 1
             }
         }
         return display
@@ -128,7 +128,7 @@ public struct PanelHealth: Equatable, Sendable {
         latched = true
         self.reason = reason
         goodStreak = 0
-        counters.failures += 1
+        counters.failures &+= 1
         return display
     }
 
@@ -146,7 +146,7 @@ public struct PanelHealth: Equatable, Sendable {
         lastTickMs = nowMs
         if starved {
             lastAdvanceMs = nowMs
-            counters.starvedTicks += 1
+            counters.starvedTicks &+= 1
             return display
         }
         // Strictly greater: an advance exactly at the deadline is still on time.
@@ -154,7 +154,7 @@ public struct PanelHealth: Equatable, Sendable {
             latched = true
             reason = .liveness
             goodStreak = 0
-            counters.livenessTrips += 1
+            counters.livenessTrips &+= 1
         }
         return display
     }

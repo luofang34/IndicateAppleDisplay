@@ -21,6 +21,11 @@ let package = Package(
             dependencies: ["IndicateAppleDisplay"],
             path: "Examples/BackendGallery"
         ),
+        .executableTarget(
+            name: "PanelBenchmark",
+            dependencies: ["IndicateAppleDisplay"],
+            path: "Benchmarks/PanelBenchmark"
+        ),
         .testTarget(
             name: "IndicateAppleDisplayTests",
             dependencies: ["IndicateAppleDisplay"],

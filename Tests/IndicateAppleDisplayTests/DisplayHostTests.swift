@@ -36,7 +36,7 @@ private func requirements(
     )
 }
 
-private final class StubProducer: SceneProducing {
+private final class StubProducer: SceneProducing, @unchecked Sendable {
     var bytes: [UInt8]
     var generation: UInt32 = 1
     var fault: DisplayReason?
@@ -66,7 +66,7 @@ private final class CountingAtlas: GlyphAtlas, @unchecked Sendable {
 @Test
 func aHealthyFrameCommitsAtTheRequestedSize() {
     let display = PanelDisplay(requirements: requirements(), producer: StubProducer(bytes: attitudeScene))
-    let outcome = display.render(pixelWidth: 240, pixelHeight: 180, nowMs: 0)
+    let outcome = display.renderBlocking(pixelWidth: 240, pixelHeight: 180, nowMs: 0)
     #expect(!outcome.showingFailure)
     #expect(outcome.reason == .ok)
     #expect(outcome.image?.width == 240)
@@ -77,10 +77,10 @@ func aHealthyFrameCommitsAtTheRequestedSize() {
 func aProducerFaultCoversInsteadOfLeavingTheLastGoodFrameVisible() {
     let producer = StubProducer(bytes: attitudeScene)
     let display = PanelDisplay(requirements: requirements(), producer: producer)
-    #expect(!display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 0).showingFailure)
+    #expect(!display.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 0).showingFailure)
 
     producer.fault = .stateWriteFailed
-    let outcome = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 16)
+    let outcome = display.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 16)
     #expect(outcome.showingFailure)
     #expect(outcome.reason == .stateWriteFailed)
     // A covered frame still yields an image: the caller must have something to
@@ -97,7 +97,7 @@ func aSceneMissingACriticalLayerIsNotCommitted() {
         requirements: requirements(critical: [.attitude, .guidance]),
         producer: StubProducer(bytes: attitudeScene)
     )
-    let outcome = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
+    let outcome = display.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
     #expect(outcome.showingFailure)
     #expect(outcome.reason == .sceneCriticalLayersMissing)
 }
@@ -107,7 +107,7 @@ func anUnknownOpcodeFailsTheFrameByDefaultAndSkipsWhenAsked() {
     let failing = PanelDisplay(
         requirements: requirements(), producer: StubProducer(bytes: unknownOpcodeScene)
     )
-    let covered = failing.render(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
+    let covered = failing.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
     #expect(covered.showingFailure)
     #expect(covered.reason == .unknownOpcode)
 
@@ -115,7 +115,7 @@ func anUnknownOpcodeFailsTheFrameByDefaultAndSkipsWhenAsked() {
         requirements: requirements(unknown: .countAndSkip),
         producer: StubProducer(bytes: unknownOpcodeScene)
     )
-    let painted = skipping.render(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
+    let painted = skipping.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
     #expect(!painted.showingFailure)
     #expect(painted.report?.unknownOpcodes == 1)
 }
@@ -129,11 +129,11 @@ func identicalFramesSummariseIdenticallySoAHostCanPublishOnChange() {
     // generation, the one field that always differs.
     let producer = StubProducer(bytes: attitudeScene)
     let display = PanelDisplay(requirements: requirements(), producer: producer)
-    let first = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
+    let first = display.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
     // A real producer advances per render, which is exactly what must not
     // reach a host as a change worth republishing.
     producer.generation &+= 1
-    let second = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 8)
+    let second = display.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 8)
     #expect(first.generation != second.generation)
     #expect(first.summary == second.summary)
 }
@@ -144,10 +144,10 @@ func aFrameWorthShowingDifferentlySummarisesDifferently() {
     // a change. A covered frame has to compare unequal to a shown one.
     let producer = StubProducer(bytes: attitudeScene)
     let display = PanelDisplay(requirements: requirements(), producer: producer)
-    let healthy = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
+    let healthy = display.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 0)
 
     producer.fault = .renderTrap
-    let covered = display.render(pixelWidth: 64, pixelHeight: 64, nowMs: 16)
+    let covered = display.renderBlocking(pixelWidth: 64, pixelHeight: 64, nowMs: 16)
     #expect(healthy.summary != covered.summary)
     #expect(covered.summary.showingFailure)
     #expect(covered.summary.reason == .renderTrap)
@@ -302,12 +302,12 @@ func aGlyphOutlineIsBuiltOncePerScalarNotOncePerFrame() throws {
         producer: StubProducer(bytes: scene),
         atlas: atlas
     )
-    _ = display.render(pixelWidth: 256, pixelHeight: 256, nowMs: 0)
+    _ = display.renderBlocking(pixelWidth: 256, pixelHeight: 256, nowMs: 0)
     let afterFirst = atlas.lookups
     #expect(afterFirst > 0)
 
     for index in 1...20 {
-        _ = display.render(pixelWidth: 256, pixelHeight: 256, nowMs: Double(index))
+        _ = display.renderBlocking(pixelWidth: 256, pixelHeight: 256, nowMs: Double(index))
     }
     #expect(atlas.lookups == afterFirst, "outlines must survive across frames")
 }

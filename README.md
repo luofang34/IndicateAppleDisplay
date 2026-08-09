@@ -94,6 +94,11 @@ InstrumentPanel(display: display) { outcome in
 }
 ```
 
+`InstrumentPanel` submits work to a render worker. The worker keeps one pending
+request. A new request replaces an older pending request. The main actor only
+schedules work and presents completed images. Use `PanelDisplay.renderBlocking`
+only in an offline tool or a test.
+
 Hold the `PanelDisplay` for the lifetime of the panel. Rebuilding it per state
 change would dismiss a latched fault and rebuild every glyph outline.
 
@@ -162,3 +167,19 @@ swift test
 ```
 
 Requires Swift 6.1, iOS 17, or macOS 14.
+
+## Render performance gate
+
+`PanelBenchmark` records PFD and HSI frame time at 1x and 2x scale. It checks
+60 Hz and 120 Hz targets. `p95` is the 95th-percentile frame time. CI fails
+when p95 is more than 8 ms. CI also fails when a display allocates more than
+two pixel buffers. The gate measures heap use after warmup. It fails when 50
+frames retain more than 256 KiB. The report includes the retained heap block
+count.
+
+Run the same gate from the repository root:
+
+```sh
+swift run -c release PanelBenchmark \
+  --corpus Tests/IndicateAppleDisplayTests/Fixtures/scene-conformance-corpus.json
+```

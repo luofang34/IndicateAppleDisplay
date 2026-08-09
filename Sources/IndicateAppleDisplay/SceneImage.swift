@@ -55,39 +55,48 @@ extension SceneRenderer {
         logicalFrame: CGRect,
         background: CGColor?
     ) throws(SceneRenderError) -> CGImage {
-        let context = try Self.framedContext(
+        var buffers = PixelBufferPool()
+        return try paintedImage(
+            bytes,
             pixelWidth: pixelWidth,
             pixelHeight: pixelHeight,
             logicalFrame: logicalFrame,
-            background: background
+            background: background,
+            buffers: &buffers
         )
-        try paintValidated(bytes, into: context)
-        guard let image = context.makeImage() else {
-            throw SceneRenderError.contextUnavailable
-        }
-        return image
     }
 
-    /// An offscreen bitmap whose coordinate system is the scene's: y-down, with
-    /// `logicalFrame` scaled uniformly to fit and centred.
-    static func framedContext(
+    /// Paints into a reusable offscreen pixel buffer.
+    func paintedImage(
+        _ bytes: [UInt8],
+        pixelWidth: Int,
+        pixelHeight: Int,
+        logicalFrame: CGRect,
+        background: CGColor?,
+        buffers: inout PixelBufferPool
+    ) throws(SceneRenderError) -> CGImage {
+        try buffers.makeImage(pixelWidth: pixelWidth, pixelHeight: pixelHeight) {
+            (context: CGContext) throws(SceneRenderError) in
+            try Self.prepare(
+                context,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight,
+                logicalFrame: logicalFrame,
+                background: background
+            )
+            try paintValidated(bytes, into: context)
+        }
+    }
+
+    /// Sets the scene coordinate system on a reusable bitmap context.
+    private static func prepare(
+        _ context: CGContext,
         pixelWidth: Int,
         pixelHeight: Int,
         logicalFrame: CGRect,
         background: CGColor?
-    ) throws(SceneRenderError) -> CGContext {
-        guard pixelWidth > 0, pixelHeight > 0,
-              logicalFrame.width > 0, logicalFrame.height > 0,
-              let context = CGContext(
-                  data: nil,
-                  width: pixelWidth,
-                  height: pixelHeight,
-                  bitsPerComponent: 8,
-                  bytesPerRow: pixelWidth * 4,
-                  space: CGColorSpaceCreateDeviceRGB(),
-                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-              )
-        else {
+    ) throws(SceneRenderError) {
+        guard logicalFrame.width > 0, logicalFrame.height > 0 else {
             throw SceneRenderError.contextUnavailable
         }
 
@@ -111,6 +120,5 @@ extension SceneRenderer {
         // Map the requested region, not just a box at the origin, so a caller
         // can show content a panel paints outside its design frame.
         context.translateBy(x: -logicalFrame.minX, y: -logicalFrame.minY)
-        return context
     }
 }
