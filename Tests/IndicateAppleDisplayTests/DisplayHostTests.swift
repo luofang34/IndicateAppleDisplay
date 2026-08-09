@@ -242,6 +242,14 @@ func everyDisplayReasonCodeIsDistinct() {
 }
 
 @Test
+func producerStatusVocabularyPreservesRuntimeCodes() {
+    #expect(DisplayReason(rawValue: 11) == .stateMalformed)
+    #expect(DisplayReason.stateMalformed.label == "D-11")
+    #expect(DisplayReason(rawValue: 12) == .configInvalid)
+    #expect(DisplayReason.configInvalid.label == "D-12")
+}
+
+@Test
 func paintFailuresCarryTheDiagnosticTheirRemedyNeeds() {
     #expect(SceneRenderError.missingGlyph("Z").displayReason == .glyphAsset)
     #expect(SceneRenderError.textWithoutAtlas.displayReason == .glyphAsset)
