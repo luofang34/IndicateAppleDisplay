@@ -15,7 +15,7 @@ public enum SceneBackend {
     public static let conformanceSchemaVersion = 2
 
     /// Version of the reviewed corpus this backend is verified against.
-    public static let conformanceCorpusVersion = 4
+    public static let conformanceCorpusVersion = 8
 
     /// Digest over the corpus' case bytes, as the corpus records it.
     ///
@@ -23,7 +23,7 @@ public enum SceneBackend {
     /// expected behaviour must fail the conformance tests rather than silently
     /// re-baseline this interpreter against a moved target.
     public static let conformanceCorpusDigest =
-        "1fb8e6de2734ff7506843b05869f39d501f0926599636c6110a7e3b0c6e1625e"
+        "0b0c7ccb135bfc4107bc110e4b24dceffd84adf1b767fcd14d2c5ace7391f962"
 
     /// A short form for a diagnostics line: format version and corpus pin.
     public static var summary: String {
