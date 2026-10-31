@@ -8,5 +8,5 @@
 
 repo=https://github.com/luofang34/Indicate.git
 path=crates/indicate-instrument-scene/corpus/scene-conformance-corpus.json
-revision=9b2c2b895e2fe3ac061b4aeeb809b7a9d7bdf15f
+revision=ae32a218f963ee7133a0a8ccfdbcc4afd491b184
 sha256=f7d443abfef2f9616db6281da65cbb7fa33f6c854c2812981c791bf562abbf62
