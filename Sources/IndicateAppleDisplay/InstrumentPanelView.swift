@@ -230,7 +230,7 @@ public final class InstrumentPanelView: PlatformViewBase {
 
     private var backingScale: CGFloat {
         #if canImport(UIKit)
-        window?.screen.scale ?? traitCollection.displayScale
+        traitCollection.displayScale
         #else
         window?.backingScaleFactor ?? 2
         #endif
