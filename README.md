@@ -159,14 +159,35 @@ It exits with a non-zero status when a case does not match, so CI can use it as
 a smoke test. `scripts/ci.sh` runs it. Pass `--corpus <path>` to read a corpus
 from somewhere else.
 
+## Volumetric RealityKit host and byte-buffer codecs
+
+The package also provides the 3D volumetric display pipeline and frozen
+little-endian byte-buffer codecs for `visionOS`, `iOS`, and `macOS`:
+
+- **3D volumetric scene (`VOLUME_SCENE_VERSION = 1`)** — `VolumeBand`,
+  `VolumeSceneCommand`, `VolumeSceneDecoder`, `VolumeSceneEncoder`, and
+  `VolumeSceneValidator`. Decodes and validates 3D bands (`0...8`), outer
+  `save`/`restore` isolation envelopes, stack limits, and unknown-opcode policy.
+- **Spatial interaction and intent codecs** — `InteractionFrame`, `ViewPose3D`
+  (`48` bytes), `ViewPoseController`, `IntentRequest` (`30 + N` bytes),
+  `IntentNamespace.domain` (64-bit FNV-1a), `EchoSummary` (`12` bytes), and
+  `DrawContextPacket` (`72`-byte header plus variable sections).
+- **Volumetric display host and `RealityKit` builder** — `VolumeRequirements`,
+  `VolumeHealth`, `VolumeDisplay`, `RealityVolumeBuilder`, and
+  `InstrumentVolume`. `VolumeDisplay` latches faults immediately and requires 30
+  advancing generations to recover. `RealityVolumeBuilder` builds `Entity` trees
+  with `IndicateTargetComponent` handles, `IndicateUnderlayAnchorComponent`
+  anchors, and a standalone 3D red-X failure cage (`D-NNN`).
+
 ## Build and test
 
 ```sh
 swift test
-./scripts/ci.sh          # build, test, and the corpus guard
+./scripts/ci.sh          # build, test, benchmark, and the corpus guard
+./scripts/check-visionos.sh
 ```
 
-Requires Swift 6.1, iOS 17, or macOS 14.
+Requires Swift 6.1, iOS 17, macOS 14, or visionOS 1.
 
 ## Render performance gate
 
